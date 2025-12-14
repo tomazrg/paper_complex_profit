@@ -1,0 +1,234 @@
+---
+title: ""
+format: html
+editor: visual
+---
+
+## Packages
+
+```{r}
+library(gsheet)
+library(tidyverse)
+library(lme4)
+library(metan)
+library(DHARMa)
+library(metafor)
+library(cowplot)
+```
+
+# Fitted model
+
+```{r}
+
+test_l <- readRDS("data/lmer.rds")
+
+summary(test_l)
+
+```
+
+# BLUP
+
+### Trial
+
+```{r}
+library(lme4)
+library(dplyr)
+library(tibble)
+library(tidyr)
+
+# BLUPs de trial
+blup_trial <- ranef(test_l)$trial %>%
+  as.data.frame() %>%
+  rownames_to_column("trial") %>%
+  rename(blup_trial = `(Intercept)`)
+
+head(blup_trial)
+
+```
+
+```{r}
+mu <- fixef(test_l)[["(Intercept)"]]
+
+blup_trial <- blup_trial %>%
+  mutate(
+    yld_adjusted_trial = mu + blup_trial
+  )
+
+head(blup_trial)
+
+```
+
+### Trial x Hybrid
+
+```{r}
+# BLUPs de trial:hybrid
+blup_trial_hybrid <- ranef(test_l)$`trial:hybrid` %>%
+  as.data.frame() %>%
+  rownames_to_column("trial_hybrid") %>%
+  rename(blup_trial_hybrid = `(Intercept)`)
+
+# separar trial e hybrid
+blup_trial_hybrid <- blup_trial_hybrid %>%
+  separate(trial_hybrid, into = c("trial", "hybrid"), sep = ":")
+
+head(blup_trial_hybrid)
+
+
+```
+
+```{r}
+# pegar também o BLUP de trial e juntar
+blup_trial_hybrid_full <- blup_trial_hybrid %>%
+  left_join(blup_trial, by = "trial") %>%
+  mutate(
+    yld_adjusted = mu + blup_trial + blup_trial_hybrid
+  )
+
+head(blup_trial_hybrid_full)
+
+
+
+```
+
+### Plotting
+
+```{r}
+blup_trial_hybridd = blup_trial_hybrid_full %>% 
+  ggplot(aes(blup_trial_hybrid))+
+  geom_histogram(color = "white", bins = 15, fill = "tan2")+
+  ggthemes::theme_few()+
+  labs(x = "BLUP trial/hybrid (kg/ha)",
+       y = "Frequency")+
+  #scale_x_continuous(breaks = seq(0, 3, by = 0.5))+
+   theme(text = element_text(size = 14, face = "bold"),
+        axis.title = element_text(size = 16, face = "bold"),
+        strip.text = element_text(size = 16, face = "bold"),
+        title = element_text(face = "bold"),
+        legend.position = "none")
+
+blup_trial_hybridd
+```
+
+```{r}
+blup_trial = blup_trial_hybrid_full %>% 
+  ggplot(aes(blup_trial))+
+  geom_histogram(color = "white", bins = 15, fill = "steelblue")+
+  ggthemes::theme_few()+
+  labs(x = "BLUP trial (kg/ha)",
+       y = "")+
+  #scale_x_continuous(breaks = seq(0, 3, by = 0.5))+
+   theme(text = element_text(size = 14, face = "bold"),
+        axis.title = element_text(size = 16, face = "bold"),
+        strip.text = element_text(size = 16, face = "bold"),
+        title = element_text(face = "bold"),
+        legend.position = "none")
+
+blup_trial
+```
+
+```{r}
+yld_adjusted_trial = blup_trial_hybrid_full %>% 
+  ggplot(aes(yld_adjusted_trial))+
+  geom_histogram(color = "white", bins = 15, fill = "tomato3")+
+  ggthemes::theme_few()+
+  labs(x = "Trial Yield (kg/ha)",
+       y = "Frequency")+
+  #scale_x_continuous(breaks = seq(0, 3, by = 0.5))+
+   theme(text = element_text(size = 14, face = "bold"),
+        axis.title = element_text(size = 16, face = "bold"),
+        strip.text = element_text(size = 16, face = "bold"),
+        title = element_text(face = "bold"),
+        legend.position = "none")
+
+yld_adjusted_trial
+```
+
+```{r}
+yld_adjusted = blup_trial_hybrid_full %>% 
+  ggplot(aes(yld_adjusted))+
+  geom_histogram(color = "white", bins = 15, fill = "darkolivegreen4")+
+  ggthemes::theme_few()+
+  labs(x = "Overall yield  (kg/ha)",
+       y = "")+
+  #scale_x_continuous(breaks = seq(0, 3, by = 0.5))+
+   theme(text = element_text(size = 14, face = "bold"),
+        axis.title = element_text(size = 16, face = "bold"),
+        strip.text = element_text(size = 16, face = "bold"),
+        title = element_text(face = "bold"),
+        legend.position = "none")
+
+yld_adjusted
+```
+
+```{r}
+plot_grid(blup_trial_hybridd,blup_trial,yld_adjusted_trial,yld_adjusted,
+          labels = c("(a)", "(b)", "(c)", "(d)"),
+  label_size = 16,          
+  label_fontface = "bold", 
+  ncol = 2,                
+  align = "hv", 
+  label_x = -0.01,
+  label_y = 1)
+
+
+```
+
+```{r}
+ggsave("fig/blup.png", bg = "white", dpi = 600, height = 6, width = 12)
+```
+
+```{r}
+dados3 = readxl::read_xlsx("data/data3.xlsx")
+
+ dados3 =dados3 %>% 
+  mutate(
+ pressao = ifelse(sev > 10, "high", "low"))
+ 
+dados3$yld_pred <- predict(test_l, re.form = NULL)  # com efeitos aleatórios
+
+# média predita por cenário
+pred_scenario <- dados3 %>%
+  group_by(application, season, pressao) %>%
+  summarise(
+    yld_pred_mean = mean(yld_pred),
+    .groups = "drop"
+  )
+
+pred_scenario
+
+```
+
+```{r}
+dados3$yld_pred_fixed <- predict(test_l, re.form = NA)
+
+pred_scenario_fixed <- dados3 %>%
+  group_by(application, season, pressao) %>%
+  summarise(
+    yld_pred_mean = mean(yld_pred_fixed),
+    .groups = "drop"
+  )
+
+pred_scenario_fixed
+
+```
+
+```{r}
+mod_blup_hybrid <- lmer(
+  yld ~ application * season * pressao +
+    (1 | trial) + (1 | hybrid),
+  data = dados3
+)
+
+blup_hybrid <- ranef(mod_blup_hybrid)$hybrid %>%
+  as.data.frame() %>%
+  rownames_to_column("hybrid") %>%
+  rename(blup_hybrid = `(Intercept)`)
+
+mu2 <- fixef(mod_blup_hybrid)[["(Intercept)"]]
+
+blup_hybrid <- blup_hybrid %>%
+  mutate(yld_adjusted_hybrid = mu2 + blup_hybrid)
+
+head(blup_hybrid)
+
+```

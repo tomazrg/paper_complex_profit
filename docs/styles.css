@@ -1,0 +1,117 @@
+/* Importação das fontes */
+@import url('https://fonts.googleapis.com/css?family=Roboto+Condensed:300');
+@import url('https://fonts.googleapis.com/css?family=Oswald');
+
+/* ====== DEFININDO AS CORES DO TEMA ====== */
+
+:root {
+    --tema-vermelho: #8B0000;           /* letras em vermelho escuro */
+    --tema-verde: #556B2F;              /* darkolivegreen4 */
+    --texto-claro: #ffffff;
+}
+
+/* ====== NAVBAR ====== */
+
+.navbar {
+    min-height: 50px;
+    padding: 5px 10px;
+    display: flex;  
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--tema-verde);    /* fundo da navbar */
+}
+
+/* Itens da navbar */
+.navbar-nav.left {
+    display: flex;
+    justify-content: center;
+    flex-grow: 1;
+}
+
+.navbar-nav.right {
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* Links da navbar */
+.navbar-nav > li > a {
+    padding-top: 8px;
+    padding-bottom: 8px;
+    font-size: 16px;
+    margin-left: 20px;
+    padding-left: 10px !important;
+    color: var(--texto-claro) !important;      /* texto claro no fundo verde */
+}
+
+.navbar-nav > li > a:hover {
+    color: var(--tema-vermelho) !important;    /* hover em vermelho escuro */
+    font-weight: bold;
+}
+
+/* ====== ITENS ATIVOS (sidebar etc.) ====== */
+.list-group-item.active {
+    z-index: 2;
+    color: var(--texto-claro);
+    background-color: var(--tema-verde);       /* fundo verde */
+    border-color: var(--tema-verde);
+}
+
+/* ====== CABEÇALHO DA PÁGINA ====== */
+.page-header {
+    text-align: left;
+    background-color: var(--tema-verde);       /* fundo do cabeçalho */
+    padding: 10px 15px;
+    border-radius: 5px;
+}
+
+.page-header h1 {
+    color: var(--texto-claro);                 /* título branco no fundo verde */
+}
+
+/* ====== TÍTULOS (h1–h4) ====== */
+h1, h2, h3, h4 {
+    font-family: 'Oswald', sans-serif;
+    padding-bottom: 10px;
+    padding-top: 20px;
+    color: var(--tema-vermelho);               /* letras vermelhas */
+    margin-left: 5px;
+}
+
+/* ====== LINKS DO TEXTO ====== */
+a {
+    color: var(--tema-vermelho);               /* links em vermelho escuro */
+}
+
+a:hover {
+    color: var(--tema-verde);                  /* hover verde */
+    text-decoration: underline;
+}
+
+/* ====== BOTÕES ====== */
+.btn {
+    background-color: var(--tema-verde);
+    color: var(--texto-claro);
+    border: 1px solid var(--tema-verde);
+}
+
+.btn:hover {
+    background-color: var(--tema-vermelho);
+    border-color: var(--tema-vermelho);
+    color: var(--texto-claro);
+}
+
+/* ====== Códigos, caixas e blocos ====== */
+pre, code {
+    background-color: #f4f4f4;
+    border-left: 4px solid var(--tema-verde);
+}
+
+/* ====== TABELAS ====== */
+table th {
+    background-color: var(--tema-verde);
+    color: var(--texto-claro);
+}
+
+table td {
+    color: var(--tema-vermelho);
+}

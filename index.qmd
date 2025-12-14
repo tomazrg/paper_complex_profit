@@ -1,0 +1,1034 @@
+---
+title: ""
+message: false
+warning: false
+---
+
+## Packages
+
+```{r}
+library(gsheet)
+library(tidyverse)
+library(lme4)
+library(metan)
+library(DHARMa)
+library(metafor)
+library(cowplot)
+```
+
+## Import data
+
+```{r}
+dados <- gsheet2tbl("https://docs.google.com/spreadsheets/d/1pUGN7bPHtENsO8eb-f8J1q6_pbMqm86bVnaNlgClleo/edit?usp=sharing")
+```
+
+```{r}
+library(tidyr)
+library(dplyr)
+
+dados_long <- dados %>%
+  pivot_longer(
+    cols = c(poli, comum, branca, cercos, turc, diplo,antrac,bipol),
+    names_to = "disease",
+    values_to = "value"
+  )
+
+
+library(dplyr)
+
+freq_disease_season <- dados_long %>%
+  mutate(
+    value = as.numeric(value),
+    presente = ifelse(value > 0.00, 1, 0)
+  ) %>%
+  group_by(season, disease) %>%
+  summarise(
+    n_presentes = sum(presente, na.rm = TRUE),
+    total = n(),
+    freq = round(n_presentes / total * 100, 1),
+    .groups = "drop"
+  )
+
+
+
+
+dados_long = dados_long %>% 
+  mutate(
+    type = case_when(disease == "cercos" ~ "spot",
+                     disease == "turc" ~ "spot",
+                     disease == "diplo" ~ "spot",
+                     disease == "antrac" ~ "spot",
+                     disease == "bipol" ~ "spot",
+                     disease == "poli" ~ "rust",
+                     disease == "comum" ~ "rust",
+                     disease == "branca" ~ "rust")
+  )
+
+```
+
+## Frequency
+
+```{r}
+frequency = dados_long %>% 
+  filter(application == "check") %>% 
+  group_by(season,hybrid,disease,location) %>% 
+  dplyr::summarise(
+    value = mean(value, na.rm = TRUE)
+  ) %>% 
+ mutate(
+    value = as.numeric(value),
+    presente = ifelse(value > 0.0, 1, 0)
+  ) %>%
+  group_by(season, disease) %>%
+  summarise(
+    n_presentes = sum(presente, na.rm = TRUE),
+    total = n(),
+    freq = round(n_presentes / total * 100, 1),
+    .groups = "drop"
+  )
+
+frequency
+```
+
+## Mean severity
+
+```{r}
+mean_complex = dados_long %>% 
+  filter(!value <= 0.0) %>% 
+  filter(application == "check") %>% 
+  group_by(season,disease) %>% 
+  dplyr::summarise(
+    value = mean(value, na.rm = TRUE)
+  )
+
+mean_complex
+```
+
+## Prepare data
+
+```{r}
+
+dados2 <- dados |> 
+  mutate(trial = interaction(year, location, season, hybrid))
+
+dados3 <- dados2 |> 
+  dplyr::group_by(trial, year, location, season, hybrid, technology, application) |>
+  dplyr::summarize(sev = mean(severity),
+            yld = mean(yield2),
+            sd_sev = sd(severity),
+            sd_yld = sd(yield2),
+            n = n()
+            )
+
+dados_meta <- dados3 %>%
+  dplyr::select(trial, year, location, season, hybrid, technology, application, yld, sd_yld, n, sev) %>%
+  pivot_wider(
+    names_from = application,
+    values_from = c(yld, sd_yld,n, sev),
+    names_sep = "_"
+  ) %>%
+    dplyr::mutate(
+    study_id = paste(trial, year, location, season, hybrid, sep = "_"),
+    pressao = ifelse(sev_check > 10, "high", "low"),
+    yi = yld_treated - yld_check,
+    sei = sqrt((sd_yld_treated^2 / n_treated) + (sd_yld_check^2 / n_check))
+  ) %>%
+  drop_na(yi, sei) 
+
+dados_meta
+```
+
+```{r}
+#writexl::write_xlsx(dados3,"data/data3.xlsx")
+```
+
+```{r}
+dados_meta |> 
+  ungroup() |> 
+  count(hybrid) |> 
+  arrange(n)
+
+```
+
+### Severity
+
+```{r}
+library(ggthemes)
+
+metaa = dados_meta %>% 
+   filter(sev_check >=5) %>% 
+  filter(yld_check <= 12000)
+```
+
+```{r}
+
+
+sev_plot = metaa %>% 
+  ggplot(aes(sev_check))+
+  geom_histogram(color = "white",fill = "black", bins = 10)+
+  facet_wrap(~season,labeller = as_labeller(c(
+    "first" = "First",
+    "second" = "Second"
+  )))+
+  theme_few()+
+  labs(x = "Severity (%)",
+       y = "Frequency")+
+  theme(text = element_text(size = 8, face = "bold"),
+        axis.text.x = element_text(size = 8, face = "bold", angle = 45, vjust = 0.5),   
+        axis.text.y = element_text(size = 8, face = "bold"),
+        axis.title = element_text(size = 12, face = "bold"),
+        strip.text = element_text(size = 12))
+
+sev_plot
+```
+
+```{r}
+metaa %>% 
+  group_by(season) %>% 
+dplyr::summarise(
+    min = min(sev_check),
+    max = max(sev_check),
+    sd = sd(sev_check),
+    mean = mean(sev_check),
+    n = n(),
+    se = sd/sqrt(n)
+  )
+```
+
+```{r}
+metaa %>% 
+  group_by(year,season) %>% 
+dplyr::summarise(
+    min = min(sev_check),
+    max = max(sev_check),
+    sd = sd(sev_check),
+    mean = mean(sev_check),
+    n = n(),
+    se = sd/sqrt(n)
+  )
+```
+
+### Yield
+
+```{r}
+yield_plot = metaa %>% 
+  ggplot(aes(yld_check))+
+  geom_histogram(color = "white",fill = "black", bins = 10)+
+  scale_x_continuous(breaks = c(5000,7500,10000,12500),
+                     limits = c(5000, 12500))+
+  facet_wrap(~season,labeller = as_labeller(c(
+    "first" = "",
+    "second" = " "
+  )))+
+  theme_few()+
+  labs(x = "Yield (kg/ha)",
+       y = "Frequency")+
+  theme(text = element_text(size = 8, face = "bold"),
+        axis.text.x = element_text(size = 8, face = "bold", angle = 45, vjust = 0.5),   
+        axis.text.y = element_text(size = 8, face = "bold"),
+        axis.title = element_text(size = 12, face = "bold"),
+        strip.text = element_text(size = 12))
+yield_plot
+```
+
+```{r}
+metaa %>% 
+  group_by(season) %>% 
+dplyr::summarise(
+    min = min(yld_check),
+    max = max(yld_check),
+    sd = sd(yld_check),
+    mean = mean(yld_check),
+    n = n(),
+    se = sd/sqrt(n)
+  )
+```
+
+```{r}
+metaa %>% 
+  group_by(year,season) %>% 
+dplyr::summarise(
+    min = min(yld_check),
+    max = max(yld_check),
+    sd = sd(yld_check),
+    mean = mean(yld_check),
+    n = n(),
+    se = sd/sqrt(n)
+  )
+```
+
+### Map
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(ggrepel)
+library(maps)
+
+
+# Número de híbridos por location + coordenadas
+loc_hybrids <- dados %>%
+  group_by(location, season, lat, lon) %>%
+  summarise(n_hybrids = n_distinct(hybrid), .groups = "drop")
+
+loc_hybrids$lat = NULL
+loc_hybrids$lon = NULL
+loc_hybrids$lat = c(-24.09,-24.09,-23.356,-26.1255)
+loc_hybrids$lon = c(-52.356389,-52.356389,-51.158889,-52.65)
+
+library(scales)
+library(ggspatial) 
+library(gsheet)
+library(ggrepel)
+library(cowplot)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(sf)
+library(tidyverse)
+
+#install.packages("devtools") # I guess you also need this
+#devtools::install_github("ropensci/rnaturalearthhires")
+
+BRA = ne_states(
+  country = "Brazil",
+  returnclass = "sf"
+)
+library(geobr)
+municipios <- read_municipality(code_muni = "all", year = 2020)
+municipios = municipios %>% filter(name_state ==  c("Paraná"))
+
+states <- filter(BRA, 
+                 name_pt == "Paraná")
+unique(BRA$name_pt)
+
+states = states %>% 
+  mutate(id = case_when(
+    name_pt == "Paraná" ~ "PR"))
+
+SUL = ne_states(
+  country = c("Argentina", "Uruguay", "Paraguay", "Colombia", "Bolivia"),
+  returnclass = "sf")
+
+br_sf <- ne_states(geounit = "brazil",
+                   returnclass = "sf")
+
+
+library(ggplot2)
+library(cowplot)  
+
+library(ggplot2)
+library(ggrepel)
+library(dplyr)
+library(ggthemes)
+library(ggspatial)
+loc_hybrids <- loc_hybrids[-1, ]
+map3 <- loc_hybrids |>
+  ggplot() +
+  
+  # Mapa base do Brasil
+  geom_sf(data = BRA, fill = "white", color = "gray60", size = 0.4) +
+  
+  # Destacar o Paraná
+  geom_sf(data = subset(BRA, postal %in% c("PR")), 
+          fill = NA, color = "black", size = 1) +
+  
+  # Siglas dos estados
+  geom_text(data = states, aes(x = longitude, y = latitude, label = id), 
+            size = 5, hjust = 0.8, color = "black", fontface = "bold") +
+  
+  # Pontos das localidades
+  geom_point(data = loc_hybrids, aes(x = lon, y = lat), 
+             alpha = 0.8) +
+  
+  # Nomes das cidades com linhas
+  geom_text_repel(
+    data = loc_hybrids,
+    aes(x = lon, y = lat, label = location),
+    size = 4,
+    fontface = "bold",
+    color = "black",
+    min.segment.length = 0,
+    box.padding = 0.3,
+    segment.color = "gray30",
+    segment.size = 0.4
+  ) +
+  
+  # Tema e ajustes de mapa
+  theme_minimal_grid() +
+  coord_sf(xlim = c(-58, -45), ylim = c(-27, -22), expand = FALSE) +
+  
+  # Legenda personalizada
+  guides(size = FALSE,  
+         color = guide_colorbar(title = "Severity (%)", 
+                                direction = "horizontal",
+                                title.position = "top")) +
+  
+  # Estilo da legenda e borda do painel
+  theme(
+    legend.position = c(0.9, 0.01),  
+    legend.justification = c(1, 0),
+    legend.direction = "horizontal",
+    legend.title.align = 0.5,
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_text(face = "bold")
+  ) +
+  
+  # Adiciona seta de norte
+  annotation_north_arrow(location = "br", which_north = "true", 
+                         pad_x = unit(5.86, "in"), pad_y = unit(0.3, "in"), 
+                         style = north_arrow_fancy_orienteering, 
+                         height = unit(1.2, "cm"), width = unit(1.1, "cm")) +
+  
+  # Barra de escala
+  annotation_scale(location = "br", 
+                   width_hint = 0.1, 
+                   height = unit(0.2, "cm"), 
+                   text_cex = 0.6, 
+                   pad_x = unit(5.8, "in"), 
+                   pad_y = unit(0.2, "in")) +
+  
+  # Eixos
+  labs(x = "Longitude", y = "Latitude")
+
+map3
+
+```
+
+```{r}
+pr_municipios <- read_municipality(code_muni = "all", year = 2020) %>%
+  filter(name_state == "Paraná")
+
+BRA <- ne_states(country = "Brazil", returnclass = "sf")
+pr_estado <- BRA %>% filter(name_pt == "Paraná")
+map2 = loc_hybrids #|> filter(estado == "PR")
+
+mapa_brasil <- ggplot() +
+  geom_sf(data = BRA, fill = "white", color = "black", size = 0.2) +  
+  geom_sf(data = subset(BRA, postal %in% c("PR")), 
+          fill = "gray40", color = "black", size = 0.6) +  
+  theme_map() +
+    theme(
+    panel.background = element_rect(fill = "white", color = NA),  
+    plot.background = element_rect(fill = "white", color = NA),   
+    panel.border = element_rect(color = "black", fill = NA, size = 1)) 
+```
+
+```{r}
+library(patchwork)
+mapp = map3 + 
+  inset_element(mapa_brasil, 
+                left = 0.8, bottom = 0.5,  
+                right = 0.99, top = 0.95) 
+
+```
+
+```{r}
+library(cowplot)
+
+
+right_panel <- plot_grid(
+  sev_plot, yield_plot,
+  ncol = 1,
+  labels = c("(b)", "(c)"),
+  label_size = 14,
+  label_fontface = "bold",
+  align = "v"
+)
+
+
+final_plot <- plot_grid(
+  mapp, right_panel,
+  ncol = 2,
+  rel_widths = c(2, 1),     
+  labels = c("(a)",""),
+  label_size = 14,
+  label_fontface = "bold",
+  label_x = 0.02,
+  label_y = 0.98,
+  align = "h"
+)
+
+final_plot
+
+ggsave("fig/map4.png", height=4, width=10, dpi = 600, bg = "white")
+
+```
+
+```{r}
+dados_meta |> 
+  ggplot(aes(season, sev_check))+
+  geom_boxplot()
+
+```
+
+```{r}
+plot_box_sev =metaa |> 
+  ggplot(aes(factor(year), sev_check, color = season))+
+  geom_boxplot(size = 1)+
+  theme_few()+
+  scale_y_continuous(breaks = seq(5, 30, by = 5)) +
+# scale_color_viridis_d(option = "E", direction =  -1,
+ #                       labels = c("first" = "First", "second" = "Second"))+
+  scale_color_manual(values=c("darkred", "darkgreen"),
+                        labels = c("first" = "First", "second" = "Second"))+
+  labs(x = "",
+       y = "Severity (%)",
+       color = "")+
+  theme(text = element_text(size = 12, face = "bold"),
+        axis.text.x = element_blank())
+
+plot_box_sev
+```
+
+```{r}
+
+plot_box_yld = metaa |> 
+  ggplot(aes(factor(year), yld_check, color = season))+
+  geom_boxplot(size = 1)+
+  theme_few()+
+  scale_y_continuous(breaks = seq(3000, 12000, by = 1500)) +
+  #scale_color_viridis_d(option = "E", direction =  -1,
+   #                     labels = c("first" = "First", "second" = "Second"))+
+  scale_color_manual(values=c("darkred", "darkgreen"),
+                        labels = c("first" = "First", "second" = "Second"))+  
+  labs(x = "Year",
+       y = "Yield (kg/ha)",
+       color = "")+
+  theme(text = element_text(size = 12, face = "bold"))
+
+plot_box_yld
+```
+
+```{r}
+
+library(patchwork)
+
+(plot_box_sev/plot_box_yld)+
+  plot_annotation(tag_levels = "a", tag_prefix = "(", tag_suffix = ")")+
+  theme(plot.tag = element_text(face = "bold", size = 12))
+
+```
+
+```{r}
+
+ggsave("fig/yld_sev.png", dpi = 1000, bg = "white", height = 4, width = 6)
+
+```
+
+```{r}
+metaa %>% 
+  ggplot(aes(sev_check,yld_check))+
+  geom_point(size = 4, color = "gray")+
+  theme_few()+
+  geom_smooth(method = "gam", color = "black", size = 3)+
+    theme(text = element_text(size = 12, face = "bold"))+
+  labs(x = "Severity (%)",
+       y = "Yield (kg/ha)")
+
+```
+
+```{r}
+dd = dados3 %>% 
+ # filter(!season == "first") %>% 
+  filter(sev >=5) %>% 
+  filter(yld <=12000)
+
+
+dd %>% 
+  ggplot(aes(sev,yld))+
+  geom_point()
+
+```
+
+# Linear modeling
+
+```{r}
+ dados3 =dados3 %>% 
+  mutate(
+ pressao = ifelse(sev > 10, "high", "low"))
+
+test_l = lmer(yld ~ application * season *  pressao + (1 | trial) + (1 | trial:hybrid), data = dados3)
+
+
+summary(test_l)
+
+
+```
+
+## Contrast
+
+### Application x season x pressure
+
+```{r}
+library(emmeans)
+
+
+emm = emmeans(test_l, ~ application * season*pressao)
+
+mm = contrast(emm, method = "revpairwise", by = c("season","pressao"))
+confint(mm)
+
+
+
+```
+
+### Application x season
+
+```{r}
+emm_as = emmeans(test_l, ~ application * season)
+mm_as = contrast(emm_as, method = "revpairwise", by = "season")
+confint(mm_as)
+```
+
+### Aplication x pressure
+
+```{r}
+
+emm2 = emmeans(test_l, ~ application * pressao)
+mm2 = contrast(emm2, method = "revpairwise", by = "pressao")
+
+summary(mm2)
+confint(mm2)
+
+
+```
+
+```{r}
+saveRDS(test_l, file = "data/lmer.rds")
+```
+
+
+# Principal Components Analysis (PCA)
+
+### Preparing
+
+```{r}
+library(dplyr)
+library(tidyr)
+
+# 1) média de rendimento por trial × season × pressao × application
+yld_ensaio <- dados2 %>%
+  group_by(trial, season, application) %>%
+  summarise(
+    yld_mean = mean(yield2, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# 2) deixar largo para ter colunas "check" e "treated"
+yld_wide <- yld_ensaio %>%
+  pivot_wider(
+    names_from  = application,
+    values_from = yld_mean
+  )
+
+# 3) ganho de rendimento do fungicida
+yld_gain <- yld_wide %>%
+  mutate(
+    gain_yld = treated - check   # ajuste o nome dos níveis se forem outros
+  ) %>% 
+  full_join(dados2)
+
+head(yld_gain)
+```
+
+### PCA fitting
+
+```{r}
+yld_gain2 = yld_gain[,16:26]
+yld_gain2$yield = NULL
+yld_gain2$yield2 = NULL
+yld_gain2$severity = NULL
+
+#yld_gain2$gain_yld = yld_gain$gain_yld
+yld_gain2[is.na(yld_gain2)] <- 0
+
+pc <- prcomp(yld_gain2, scale. = TRUE)
+
+pc
+```
+
+### Regression
+
+```{r}
+yld_gain2$PC1 <- pc$x[, 1]
+yld_gain2$trat = yld_gain$trat
+yld_gain2$check = yld_gain$check
+yld_gain2$gain_yld = yld_gain$gain_yld
+
+yld_gain2$hybrid = yld_gain$hybrid
+#yld_gain2$trial = yld_gain$trial
+
+pc$rotation
+
+
+yld_gain2 = yld_gain2 %>% 
+  filter(!PC1 < -5) %>% 
+  filter(!is.na(check))
+
+
+
+pc_test = lm(gain_yld ~ PC1, data = yld_gain2)
+
+
+summary(pc_test)
+confint(pc_test)
+
+```
+
+### Pearson's correlation
+
+```{r}
+cort = cor.test(yld_gain2$branca, yld_gain2$PC1)
+
+cort
+```
+
+### Plotting
+
+```{r}
+model_yld = yld_gain2 %>% 
+ #  filter(!PC1 < -5) %>% 
+ ggplot(aes(x = -PC1, y = gain_yld)) +
+  geom_point(color = NA)+
+  geom_abline(aes(intercept = 456.70,slope = -323.02),
+              size = 2, fill = "black", color = "black")+
+  geom_abline(aes(intercept = 422.5008,slope = -362.9303) ,
+              size = 1, linetype = 2)+
+  geom_abline(aes(intercept = 490.9017,slope = -283.1105), size = 1, linetype = 2)+
+  xlim(0,5)+
+  ylim(-2000,2000)+
+  scale_x_continuous(expand = c(0, 0),
+                   limits = c(0,5)) +
+  scale_y_continuous(expand = c(0, 0),
+                     limits = c(-2000,2000),
+                     breaks = seq(-2000,2000, by = 500))+
+   labs(y = "Yield gain (kg/ha)",
+       x = "PC1")+
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 14, face = "bold"),
+        axis.title = element_text(size = 20, face = "bold"),
+        strip.text = element_text(size = 20, face = "bold"),
+        title = element_text(face = "bold"),
+        legend.position = "none")
+
+model_yld
+```
+
+```{r}
+check_hist = yld_gain2 %>% 
+  ggplot(aes(gain_yld))+
+  geom_histogram(color = "white", fill = "darkgreen", bins = 15)+
+   labs(x = "Yield gain (kg/ha)",
+       y = "Frequency")+
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 14, face = "bold"),
+        axis.title = element_text(size = 20, face = "bold"),
+        strip.text = element_text(size = 20, face = "bold"),
+        title = element_text(face = "bold"),
+        legend.position = "none")
+
+check_hist
+```
+
+```{r}
+pc1_plot = yld_gain2 %>% 
+  ggplot(aes(-PC1))+
+  geom_histogram(color = "white", fill = "darkred", bins = 15)+
+     labs(x = "PC1",
+       y = "Frequency")+
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 14, face = "bold"),
+        axis.title = element_text(size = 20, face = "bold"),
+        strip.text = element_text(size = 20, face = "bold"),
+        title = element_text(face = "bold"),
+        legend.position = "none")
+
+pc1_plot
+```
+
+```{r}
+(model_yld)+check_hist/pc1_plot+
+  plot_annotation(tag_levels = "a", tag_prefix = "(", tag_suffix = ")") + 
+  theme(plot.tag = element_text(face = "bold", size = 12), label_x = -0.03, label_y = 1)
+
+```
+
+```{r}
+ggsave("fig/PC1_yield.png", bg = "white", dpi = 600, height = 8, width = 12)
+```
+
+```{r}
+
+biplot(pc)
+```
+
+```{r}
+# Vetor com os nomes das colunas de doenças
+doencas <- c("cercos", "turc", "comum", "branca", 
+             "poli", "diplo", "antrac", "bipol")
+
+# Converte todas as colunas de doenças para numéricas de uma vez
+yld_gain2[doencas] <- lapply(yld_gain2[doencas], function(x) as.numeric(as.character(x)))
+
+# Também garante que PC1 seja numérico
+yld_gain2$PC1 <- as.numeric(as.character(yld_gain2$PC1))
+
+# Calcula correlação para cada doença
+resultados <- lapply(doencas, function(d) {
+  # Remove linhas com NA em qualquer das duas variáveis
+  dados <- yld_gain2[complete.cases(yld_gain2[[d]], yld_gain2$PC1), ]
+  
+  teste <- cor.test(dados[[d]], dados$PC1)
+  
+  data.frame(
+    mean  = teste$estimate,
+    upper = teste$conf.int[1],
+    lower = teste$conf.int[2],
+    row.names = d
+  )
+})
+
+# Junta tudo em um único dataframe
+df_cor <- do.call(rbind, resultados)
+
+print(df_cor)
+
+library(ggplot2)
+
+# Transformar rownames em coluna para usar no ggplot
+df_cor$doenca <- rownames(df_cor)
+
+# Ordenar os níveis do fator pela média
+df_cor$doenca <- factor(df_cor$doenca, levels = df_cor$doenca[order(df_cor$mean)])
+
+# Criar gráfico ordenado
+ggplot(df_cor, aes(x = doenca, y = mean, ymin = lower, ymax = upper)) +
+  geom_pointrange(color = "steelblue", size = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") + # linha de referência
+  labs(
+    x = "Disease",
+    y = "Pearson's correlation") +
+  coord_flip()+
+  ggthemes::theme_few()
+
+
+
+```
+
+### Dendogram
+
+```{r}
+library(dplyr)
+library(tibble)
+library(factoextra)
+library(cluster)
+library(pheatmap)
+
+
+yield_gain_unique <- yld_gain2 %>%
+  distinct(hybrid, .keep_all = TRUE)
+
+pc1_df <- yield_gain_unique %>%
+  dplyr::select(hybrid, PC1) %>%
+  distinct()  
+
+
+pc1_matrix <- pc1_df %>%
+  column_to_rownames("hybrid")
+
+
+
+pc1_scaled <- scale(pc1_matrix)
+
+
+dist_pc1 <- dist(pc1_scaled, method = "euclidean")
+clust <- hclust(dist_pc1, method = "ward.D2")
+
+
+ks <- 2:10  
+
+sil_means <- sapply(ks, function(k){
+  grupos_k <- cutree(clust, k = k)
+  sil      <- cluster::silhouette(grupos_k, dist_pc1)
+  mean(sil[, "sil_width"])
+})
+
+k_opt <- ks[which.max(sil_means)]
+k_opt 
+
+pc1_df$GROUP <- cutree(clust, k = k_opt)
+
+
+pc1_groups <- pc1_df %>%
+  arrange(PC1) %>%
+  rename(cultivar = hybrid,
+         grupo = GROUP)
+
+
+print(pc1_groups)
+
+```
+
+```{r}
+
+fig_pc1 <- factoextra::fviz_dend(
+  clust,
+  k = k_opt,
+  rect = FALSE,
+  rect_fill = TRUE,
+  rect_border = "gray30",
+  cex = 0.8,
+  color_labels_by_k = TRUE,
+  labels_track_height = 0.8,
+  k_colors = c("tan2","darkolivegreen4")[1:k_opt],
+  guides = "none",
+  horiz = TRUE,
+  main = paste("")
+) +
+  labs(y = "Euclidean distance") +
+  ggthemes::theme_few()+
+  theme(
+    axis.text.x = element_text(size = 18, face = "bold"),
+    axis.title.x = element_text(size = 20, face = "bold"),
+    axis.text.y = element_text(size = 18, face = "bold")
+  )
+
+print(fig_pc1)
+
+```
+
+```{r}
+
+ggsave("fig/dendogram.png", bg = "white", dpi = 600, height = 18, width = 20)
+```
+
+### Diseases
+
+```{r}
+plot_poli = dados2 %>% 
+  filter(poli > 0) %>% 
+  ggplot(aes(poli))+
+  geom_histogram(color = "white", bins = 10, fill = "tan3")+
+  ggthemes::theme_few()+
+    labs(x = "",
+       y = "Frequency")+
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 14, face = "bold"),
+        axis.title = element_text(size = 20, face = "bold"),
+        strip.text = element_text(size = 20, face = "bold"),
+        title = element_text(face = "bold"),
+        legend.position = "none")
+
+plot_comum =dados2 %>% 
+  filter(comum > 0) %>% 
+  ggplot(aes(comum))+
+  geom_histogram(color = "white", bins = 10, fill = "tomato3")+
+  ggthemes::theme_few()+
+    labs(x = "",
+       y = "")+
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 14, face = "bold"),
+        axis.title = element_text(size = 20, face = "bold"),
+        strip.text = element_text(size = 20, face = "bold"),
+        title = element_text(face = "bold"),
+        legend.position = "none")
+
+plot_branca = dados2 %>% 
+  filter(branca > 0) %>% 
+  ggplot(aes(branca))+
+  geom_histogram(color = "white", bins = 10, fill = "steelblue")+
+  ggthemes::theme_few()+
+    labs(x = "",
+       y = "")+
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 14, face = "bold"),
+        axis.title = element_text(size = 20, face = "bold"),
+        strip.text = element_text(size = 20, face = "bold"),
+        title = element_text(face = "bold"),
+        legend.position = "none")
+
+plot_cercos = dados2 %>% 
+  filter(cercos > 0) %>% 
+  ggplot(aes(cercos))+
+  geom_histogram(color = "white", bins = 10, fill = "darkgreen")+
+  ggthemes::theme_few()+
+    labs(x = "",
+       y = "")+
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 14, face = "bold"),
+        axis.title = element_text(size = 20, face = "bold"),
+        strip.text = element_text(size = 20, face = "bold"),
+        title = element_text(face = "bold"),
+        legend.position = "none")
+
+plot_turc = dados2 %>% 
+  filter(turc > 0) %>% 
+  ggplot(aes(turc))+
+  geom_histogram(color = "white", bins = 10, fill = "darkorange")+
+  ggthemes::theme_few()+
+    labs(x = "Severity (%)",
+       y = "Frequency")+
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 14, face = "bold"),
+        axis.title = element_text(size = 20, face = "bold"),
+        strip.text = element_text(size = 20, face = "bold"),
+        title = element_text(face = "bold"),
+        legend.position = "none")
+
+plot_diplo = dados2 %>% 
+  filter(diplo > 0) %>% 
+  ggplot(aes(diplo))+
+  geom_histogram(color = "white", bins = 10, fill = "black")+
+  ggthemes::theme_few()+
+    labs(x = "Severity (%)",
+       y = "")+
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 14, face = "bold"),
+        axis.title = element_text(size = 20, face = "bold"),
+        strip.text = element_text(size = 20, face = "bold"),
+        title = element_text(face = "bold"),
+        legend.position = "none")
+
+plot_antrac = dados2 %>% 
+  #filter(antrac > 0) %>% 
+  ggplot(aes(antrac))+
+  geom_histogram(color = "white", bins = 10, fill = "darkred")+
+  ggthemes::theme_few()+
+    labs(x = "Severity (%)",
+       y = "")+
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 14, face = "bold"),
+        axis.title = element_text(size = 20, face = "bold"),
+        strip.text = element_text(size = 20, face = "bold"),
+        title = element_text(face = "bold"),
+        legend.position = "none")
+
+plot_bipol = dados2 %>% 
+  #filter(antrac > 0) %>% 
+  ggplot(aes(bipol))+
+  geom_histogram(color = "white", bins = 10, fill = "grey")+
+  ggthemes::theme_few()+
+    labs(x = "Severity (%)",
+       y = "")+
+  ggthemes::theme_few()+
+  theme(text = element_text(size = 14, face = "bold"),
+        axis.title = element_text(size = 20, face = "bold"),
+        strip.text = element_text(size = 20, face = "bold"),
+        title = element_text(face = "bold"),
+        legend.position = "none")
+```
+
+```{r}
+plot_grid(plot_poli,plot_comum,plot_branca,plot_cercos,plot_turc,plot_diplo,plot_antrac,plot_bipol, ncol = 4,
+          labels = c("(a)", "(b)", "(c)", "(d)", "(e)", "(f)", "(g)","(h)",
+  label_size = 16,          # tamanho da fonte das labels
+  label_fontface = "bold",  # coloca as labels em negrito
+  ncol = 2,                 # duas colunas
+  align = "hv", 
+  label_x = -0.01,
+  label_y = 1))
+```
+
+```{r}
+ggsave("fig/disease_severity.png", bg = "white", dpi = 600, height = 6, width = 12)
+```

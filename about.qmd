@@ -1,0 +1,3 @@
+# About
+
+The dataset was obtained from four field experiments conducted under natural infection conditions of disease, being carried out in the years of 2018 and 2019 at Centro de Pesquisa Agrícola (Copacol) in Cafelândia, Paraná state, Brazil.
