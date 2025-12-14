@@ -6,9 +6,9 @@ website:
   title: "Modeling foliar diseases"
   navbar:
     left:
-      - href: about.qmd
-        text: "<i class='bi bi-book-half'></i> About"
       - href: index.qmd
+        text: "<i class='bi bi-book-half'></i> About"
+      - href: about.qmd
         text: "<i class='bi bi-bar-chart-fill'></i> Linear modeling"
       - href: blup.qmd
         text: "<i class='bi bi-diagram-3'></i> BLUP"
