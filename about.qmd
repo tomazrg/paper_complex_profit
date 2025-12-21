@@ -158,6 +158,8 @@ library(ggthemes)
 metaa = dados_meta %>% 
    filter(sev_check >=5) %>% 
   filter(yld_check <= 12000)
+
+median(metaa$sev_check)
 ```
 
 ```{r}

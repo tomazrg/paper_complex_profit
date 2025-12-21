@@ -1,0 +1,4 @@
+"0","m0 <- rma(yi, vi, data = es, method = ""REML"")"
+"0","mP <- rma(yi, vi, mods = ~ pressure, data = es, method = ""REML"")"
+"0","mP2 <- rma(yi, vi, mods = ~ season, data = es, method = ""REML"")"
+"0",""

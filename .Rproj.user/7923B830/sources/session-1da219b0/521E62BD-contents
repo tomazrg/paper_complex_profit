@@ -1,0 +1,223 @@
+
+# ============================================================
+# Foliar disease complex in maize
+# Trial-level effect sizes, meta-analysis, and economics
+# ============================================================
+# Effect size per trial: mean_hybrid(treated − check)
+# Sampling variance: var_hybrid(d) / m_hybrids
+# Disease pressure: summed severity in untreated plots
+#   ≤2% = disease absent | >2% = disease present
+# ============================================================
+
+## -----------------------------
+## Libraries
+## -----------------------------
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(metafor)
+library(gsheet)
+library(tidytext)
+library(cowplot)
+
+## -----------------------------
+## 0) Inputs and settings
+## -----------------------------
+gs_url <- "https://docs.google.com/spreadsheets/d/1i7f61MP5efJclMLpQWgh9k3iTyX7Xgvj/edit?gid=1609934999#gid=1609934999"
+
+diseases <- c("poli","comum","branca","cercos","turc","diplo","antrac","bipol")
+thr_present <- 2   # disease presence threshold (%)
+
+price <- 200      # R$ per tonne
+cost  <- 80       # R$ per hectare
+
+## -----------------------------
+## 1) Read and standardize data
+## -----------------------------
+dat <- gsheet2tbl(gs_url) %>%
+  mutate(
+    application = tolower(trimws(application)),
+    season      = factor(tolower(trimws(season)), levels = c("first","second")),
+    location    = trimws(location),
+    trial       = paste(year, location, season, sep = "_")
+  )
+
+stopifnot(all(c("check","treated") %in% dat$application))
+
+
+## ============================================================
+## A) Meta-analysis using absolute yield gain (kg ha−1)
+## ============================================================
+
+## 2) Collapse technology within trial × hybrid × application
+hyb_app <- dat %>%
+  group_by(trial, year, location, season, hybrid, application) %>%
+  summarise(
+    yield = mean(yield, na.rm = TRUE),
+    across(all_of(diseases), mean, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+## 3) Hybrid-level yield response (treated − check)
+hyb_diff <- hyb_app %>%
+  pivot_wider(
+    names_from  = application,
+    values_from = c(yield, all_of(diseases))
+  ) %>%
+  filter(!is.na(yield_check) & !is.na(yield_treated)) %>%
+  mutate(d_yld = yield_treated - yield_check)
+
+## 4) Trial-level effect sizes
+es <- hyb_diff %>%
+  rowwise() %>%
+  mutate(sev_sum_check = sum(c_across(all_of(paste0(diseases, "_check"))), na.rm = TRUE)) %>%
+  ungroup() %>%
+  group_by(trial, year, location, season) %>%
+  summarise(
+    yi        = mean(d_yld, na.rm = TRUE),
+    vi        = var(d_yld, na.rm = TRUE) / sum(!is.na(d_yld)),
+    m_hybrids = sum(!is.na(d_yld)),
+    sev_sum   = mean(sev_sum_check, na.rm = TRUE),
+    .groups   = "drop"
+  ) %>%
+  mutate(
+    pressure = factor(
+      ifelse(sev_sum > thr_present, "Disease present (>2%)", "Disease absent (≤2%)"),
+      levels = c("Disease absent (≤2%)", "Disease present (>2%)")
+    )
+  ) %>%
+  filter(is.finite(vi), vi > 0, m_hybrids >= 2)
+
+## 5) Meta-analysis models
+m0 <- rma(yi, vi, data = es, method = "REML")
+mP <- rma(yi, vi, mods = ~ pressure, data = es, method = "REML")
+mP2 <- rma(yi, vi, mods = ~ season, data = es, method = "REML")
+
+
+## ---- Predicted mean yield gain by disease pressure (2 rows)
+
+# Ensure pressure is a factor with the intended order
+es$pressure <- factor(es$pressure,
+                      levels = c("Disease absent (≤2%)", "Disease present (>2%)"))
+
+newP <- data.frame(pressure = levels(es$pressure))
+
+X_P <- model.matrix(~ pressure, data = newP)[, -1, drop = FALSE]  # one column
+
+pred_P <- predict(mP, newmods = X_P)
+
+pred_tab <- data.frame(
+  pressure = newP$pressure,
+  gain_hat = pred_P$pred,
+  se       = pred_P$se,
+  ci_lb    = pred_P$ci.lb,
+  ci_ub    = pred_P$ci.ub
+)
+
+pred_tab
+
+
+## ============================================================
+## B) Relative effect (log response ratio) – sensitivity analysis
+## ============================================================
+
+hyb_lnr <- hyb_diff %>%
+  filter(yield_check > 0, yield_treated > 0) %>%
+  mutate(lnRR = log(yield_treated / yield_check))
+
+es_lnr <- hyb_lnr %>%
+  group_by(trial, year, location, season) %>%
+  summarise(
+    yi = mean(lnRR, na.rm = TRUE),
+    vi = var(lnRR, na.rm = TRUE) / sum(!is.na(lnRR)),
+    .groups = "drop"
+  ) %>%
+  filter(is.finite(vi), vi > 0) %>%
+  left_join(es %>% select(trial, pressure), by = "trial")
+
+mP_lnr <- rma(yi, vi, mods = ~ pressure, data = es_lnr, method = "REML")
+mP_lnr2 <- rma(yi, vi, mods = ~ season, data = es_lnr, method = "REML")
+
+## ============================================================
+## C) Economic analysis (single price, single cost)
+## ============================================================
+
+# Convert predicted gains to kg/ha if needed
+if (max(pred_tab$gain_hat) < 20) {
+  pred_tab <- pred_tab %>%
+    mutate(across(c(gain_hat, ci_lb, ci_ub, se), ~ .x * 1000))
+}
+
+Gcrit <- 1000 * cost / price
+
+econ_tab <- pred_tab %>%
+  mutate(
+    Net      = gain_hat * price / 1000 - cost,
+    Net_lb   = ci_lb    * price / 1000 - cost,
+    Net_ub   = ci_ub    * price / 1000 - cost,
+    Prob_Pos = 1 - pnorm((Gcrit - gain_hat) / se)
+  )
+
+# Probability of achieving ≥ 5, 10, 15 sacks (60 kg)
+sack_kg <- 60
+econ_tab <- econ_tab %>%
+  mutate(
+    Prob_5s  = 1 - pnorm((5  * sack_kg - gain_hat) / se),
+    Prob_10s = 1 - pnorm((10 * sack_kg - gain_hat) / se),
+    Prob_15s = 1 - pnorm((15 * sack_kg - gain_hat) / se)
+  )
+
+econ_summary <- econ_tab %>%
+  transmute(
+    pressure,
+    net_return_R_ha   = round(Net, 1),
+    prob_net_positive = round(Prob_Pos, 3),
+    prob_5_sacks      = round(Prob_5s, 3),
+    prob_10_sacks     = round(Prob_10s, 3),
+    prob_15_sacks     = round(Prob_15s, 3)
+  )
+
+## ============================================================
+## D) Descriptive heatmap (untreated control)
+## ============================================================
+
+trial_disease <- hyb_app %>%
+  filter(application == "check") %>%
+  group_by(trial, season) %>%
+  summarise(across(all_of(diseases), mean, na.rm = TRUE), .groups = "drop") %>%
+  mutate(sev_sum = rowSums(across(all_of(diseases)), na.rm = TRUE)) %>%
+  arrange(sev_sum)
+
+heat_dat <- trial_disease %>%
+  mutate(trial_ord = factor(trial, levels = trial)) %>%
+  pivot_longer(all_of(diseases), names_to = "disease", values_to = "severity") %>%
+  bind_rows(
+    trial_disease %>%
+      mutate(trial_ord = factor(trial, levels = trial),
+             disease = "Total",
+             severity = sev_sum)
+  ) %>%
+  mutate(disease = factor(disease, levels = c(diseases, "Total")))
+
+p_heat <- ggplot(heat_dat, aes(disease, trial_ord, fill = severity)) +
+  geom_tile(color = "white", linewidth = 0.2) +
+  scale_fill_viridis_c() +
+  labs(
+    x = "Disease (untreated control)",
+    y = "Trial (ordered by total severity)",
+    fill = "Severity (%)"
+  ) +
+  ggthemes::theme_few()+
+  theme(axis.text.y = element_text(size = 12, ))
+
+## ============================================================
+## E) Net return plot
+## ============================================================
+
+p_net <- ggplot(econ_tab, aes(x = pressure, y = Net)) +
+  geom_hline(yintercept = 0, linewidth = 0.4) +
+  geom_col(width = 0.55, fill = "steelblue") +
+  geom_errorbar(aes(ymin = Net_lb, ymax = Net_ub), width = 0.1) +
+  labs(y = "Net return (R$ ha−1)", x = NULL) +
+  theme_half_open()
+
