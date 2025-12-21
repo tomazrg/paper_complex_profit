@@ -83,11 +83,21 @@ es <- hyb_diff %>%
 ```
 
 ```{r}
-m0 <- rma(yi, vi, data = es, method = "REML")
-mP <- rma(yi, vi, mods = ~ pressure, data = es, method = "REML")
-mP2 <- rma(yi, vi, mods = ~ season, data = es, method = "REML")
 
+m0 <- rma(yi, vi, data = es, method = "REML")
+m0
 ```
+
+```{r}
+mP <- rma(yi, vi, mods = ~ pressure, data = es, method = "REML")
+mP
+```
+
+```{r}
+mP2 <- rma(yi, vi, mods = ~ season, data = es, method = "REML")
+mP2
+```
+
 
 ```{r}
 es$pressure <- factor(es$pressure,
@@ -125,8 +135,20 @@ es_lnr <- hyb_lnr %>%
   filter(is.finite(vi), vi > 0) %>%
   left_join(es %>% select(trial, pressure), by = "trial")
 
+
+```
+
+```{r}
+
 mP_lnr <- rma(yi, vi, mods = ~ pressure, data = es_lnr, method = "REML")
+
+mP_lnr
+```
+
+```{r}
 mP_lnr2 <- rma(yi, vi, mods = ~ season, data = es_lnr, method = "REML")
+
+mP_lnr2
 ```
 
 
@@ -195,16 +217,71 @@ heat_dat <- trial_disease %>%
 ```
 
 ```{r}
-p_heat <- ggplot(heat_dat, aes(disease, trial_ord, fill = severity)) +
+
+library(dplyr)
+
+x_map <- c(
+  comum  = "CR",
+  branca = "TR",
+  diplo  = "DLS",
+  turc   = "NCLB",
+  bipol  = "SCLF",
+  antrac = "AL",
+  poli   = "SR",
+  cercos = "GLS"
+)
+
+y_map <- c(
+  "2019_Pato Branco_first"   = "2019_PB_1",
+  "2018_Campo Mourão_second" = "2018_CM_2",
+  "2019_Londrina_second"     = "2019_L_2",
+  "2016_Pato Branco_first"   = "2016_PB_1",
+  "2018_Pato Branco_first"   = "2018_PB_1",
+  "2016_Campo Mourão_first"  = "2016_CM_1",
+  "2020_Pato Branco_first"   = "2020_PB_1",
+  "2018_Londrina_second"     = "2018_L_2",
+  "2016_Londrina_second"     = "2016_L_2",
+  "2020_Londrina_second"     = "2020_L_2",
+  "2020_Campo Mourão_first"  = "2020_CM_1",
+  "2018_Campo Mourão_first"  = "2018_CM_1",
+  "2020_Campo Mourão_second" = "2020_CM_2",
+  "2017_Londrina_second"     = "2017_L_2",
+  "2016_Campo Mourão_second" = "2016_CM_2",
+  "2017_Campo Mourão_first"  = "2017_CM_1",
+  "2019_Campo Mourão_second" = "2019_CM_2",
+  "2019_Campo Mourão_first"  = "2019_CM_1",
+  "2017_Campo Mourão_second" = "2017_CM_2"
+)
+
+heat_dat2 <- heat_dat %>%
+  mutate(
+    disease  = recode(disease, !!!x_map),
+    trial_ord = recode(trial_ord, !!!y_map)
+  )
+
+p_heat <- ggplot(heat_dat2, aes(x = disease, y = trial_ord, fill = severity, 
+                               label = round(severity,1))) +
   geom_tile(color = "white", linewidth = 0.2) +
-  scale_fill_viridis_c() +
   labs(
-    x = "Disease (untreated control)",
-    y = "Trial (ordered by total severity)",
+    x = "Disease (non-treated control)",
+    y = "",
     fill = "Severity (%)"
   ) +
-  ggthemes::theme_few()+
-  theme(axis.text.y = element_text(size = 12, ))
+  geom_text(size = 4)+
+  scale_fill_viridis_c(begin = 0.4, end = 1, na.value = "grey80") +
+    ggthemes::theme_few()+
+  theme(text = element_text(size = 14, face = "bold"),
+        axis.title = element_text(size = 16, face = "bold"),
+        strip.text = element_text(size = 16, face = "bold"),
+        title = element_text(face = "bold"),
+        legend.position = "right")
+
+p_heat
+
+```
+
+```{r}
+ggsave("fig/heat_disease.png", bg = "white", dpi = 600, height = 8, width = 12)
 ```
 
 ```{r}

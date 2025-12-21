@@ -1,0 +1,31 @@
+{
+    "id": "CA15EA6E",
+    "path": "~/GitHub/paper_complex_profit/about.qmd",
+    "project_path": "about.qmd",
+    "type": "quarto_markdown",
+    "hash": "0",
+    "contents": "",
+    "dirty": false,
+    "created": 1766283532397.0,
+    "source_on_save": false,
+    "relative_order": 2,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "758,0",
+        "scrollLine": "716",
+        "rmdVisualMode": "false",
+        "rmdVisualWrapConfigured": "true",
+        "docOutlineVisible": "1",
+        "rmdVisualCollapsedChunks": "",
+        "rmdVisualModeLocation": "907:118.18181610107422"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1765996384,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1765996384,
+    "read_only": false,
+    "read_only_alternatives": []
+}
