@@ -135,7 +135,7 @@ es_lnr <- hyb_lnr %>%
   filter(is.finite(vi), vi > 0) %>%
   left_join(es %>% select(trial, pressure), by = "trial")
 
-
+es_lnr
 ```
 
 ```{r}
