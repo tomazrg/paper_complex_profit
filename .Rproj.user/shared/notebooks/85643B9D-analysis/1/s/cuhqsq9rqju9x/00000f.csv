@@ -1,7 +1,0 @@
-"0","hyb_diff <- hyb_app %>%"
-"0","  pivot_wider("
-"0","    names_from  = application,"
-"0","    values_from = c(yield, all_of(diseases))"
-"0","  ) %>%"
-"0","  filter(!is.na(yield_check) & !is.na(yield_treated)) %>%"
-"0","  mutate(d_yld = yield_treated - yield_check)"

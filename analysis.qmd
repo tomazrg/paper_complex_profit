@@ -84,6 +84,8 @@ es <- hyb_diff %>%
   filter(is.finite(vi), vi > 0, m_hybrids >= 2)
 ```
 
+
+
 ```{r}
 
 m0 <- rma(yi, vi, data = es, method = "REML")
@@ -123,6 +125,28 @@ pred_tab
 ```
 
 ```{r}
+es$season <- factor(es$season,
+                      levels = c("first", "second"))
+
+newP <- data.frame(season = levels(es$season))
+
+X_P <- model.matrix(~ season, data = newP)[, -1, drop = FALSE]  # one column
+
+pred_P <- predict(mP2, newmods = X_P)
+
+pred_tab2 <- data.frame(
+  season = newP$season,
+  gain_hat = pred_P$pred,
+  se       = pred_P$se,
+  ci_lb    = pred_P$ci.lb,
+  ci_ub    = pred_P$ci.ub
+)
+
+pred_tab2
+```
+
+
+```{r}
 hyb_lnr <- hyb_diff %>%
   filter(yield_check > 0, yield_treated > 0) %>%
   mutate(lnRR = log(yield_treated / yield_check))
@@ -148,24 +172,36 @@ mP_lnr
 ```
 
 ```{r}
-es$pressure <- factor(es$pressure,
-                      levels = c("Disease absent (≤2%)", "Disease present (>2%)"))
 
-newP <- data.frame(pressure = levels(es$pressure))
 
-X_P <- model.matrix(~ pressure, data = newP)[, -1, drop = FALSE]  # one column
+s <- summary(mP_lnr)
 
-pred_P <- predict(mP_lnr, newmods = X_P)
+# Extract the moderator row (difference)
+b1_est <- s$b[2]          # lnRR difference: present - absent
+b1_lb  <- s$ci.lb[2]      # lower CI
+b1_ub  <- s$ci.ub[2]      # upper CI
 
-pred_tab <- data.frame(
-  pressure = newP$pressure,
-  gain_hat = pred_P$pred,
-  se       = pred_P$se,
-  ci_lb    = pred_P$ci.lb,
-  ci_ub    = pred_P$ci.ub
+# Convert lnRR difference to ratio
+ratio_diff    <- exp(b1_est)
+ratio_diff_lb <- exp(b1_lb)
+ratio_diff_ub <- exp(b1_ub)
+
+# Convert ratio to % change
+pct_diff    <- (ratio_diff    - 1) * 100
+pct_diff_lb <- (ratio_diff_lb - 1) * 100
+pct_diff_ub <- (ratio_diff_ub - 1) * 100
+
+# Put into a simple table
+diff_table <- data.frame(
+  comparison = "High vs low",
+  pct_diff  = pct_diff,
+  pct_lb    = pct_diff_lb,
+  pct_ub    = pct_diff_ub
 )
 
-pred_tab
+diff_table
+
+
 ```
 
 
@@ -175,6 +211,34 @@ mP_lnr2 <- rma(yi, vi, mods = ~ season, data = es_lnr, method = "REML")
 mP_lnr2
 ```
 
+```{r}
+s2 <- summary(mP_lnr2)
+
+# Extract the moderator row (difference)
+b1_est <- s2$b[2]          # lnRR difference: present - absent
+b1_lb  <- s2$ci.lb[2]      # lower CI
+b1_ub  <- s2$ci.ub[2]      # upper CI
+
+# Convert lnRR difference to ratio
+ratio_diff    <- exp(b1_est)
+ratio_diff_lb <- exp(b1_lb)
+ratio_diff_ub <- exp(b1_ub)
+
+# Convert ratio to % change
+pct_diff    <- (ratio_diff    - 1) * 100
+pct_diff_lb <- (ratio_diff_lb - 1) * 100
+pct_diff_ub <- (ratio_diff_ub - 1) * 100
+
+# Put into a simple table
+diff_table2 <- data.frame(
+  comparison = "First vs Second",
+  pct_diff  = pct_diff,
+  pct_lb    = pct_diff_lb,
+  pct_ub    = pct_diff_ub
+)
+
+diff_table2
+```
 
 ```{r}
 if (max(pred_tab$gain_hat) < 20) {
@@ -184,6 +248,7 @@ if (max(pred_tab$gain_hat) < 20) {
 
 ```
 
+## Pressure
 ```{r}
 Gcrit <- 1000 * cost / price
 
@@ -215,13 +280,52 @@ econ_summary <- econ_tab2 %>%
   transmute(
     pressure,
     net_return_R_ha   = round(Net, 1),
-    prob_net_positive = round(Prob_Pos, 3),
-    prob_5_sacks      = round(Prob_5s, 3),
-    prob_10_sacks     = round(Prob_10s, 3),
-    prob_15_sacks     = round(Prob_15s, 3)
+    prob_net_positive = round(Prob_Pos, 3)*100,
+    prob_5_sacks      = round(Prob_5s, 3)*100,
+    prob_10_sacks     = round(Prob_10s, 3)*100,
+    prob_15_sacks     = round(Prob_15s, 3)*100
   )
 
 econ_summary
+```
+
+## Season
+
+```{r}
+econ_tab2 <- pred_tab2 %>%
+  mutate(
+    Net      = gain_hat * price / 1000 - cost,
+    Net_lb   = ci_lb    * price / 1000 - cost,
+    Net_ub   = ci_ub    * price / 1000 - cost,
+    Prob_Pos = 1 - pnorm((Gcrit - gain_hat) / se)
+  )
+
+econ_tab2
+```
+```{r}
+sack_kg <- 60
+econ_tab3 <- econ_tab2 %>%
+  mutate(
+    Prob_5s  = 1 - pnorm((5  * sack_kg - gain_hat) / se),
+    Prob_10s = 1 - pnorm((10 * sack_kg - gain_hat) / se),
+    Prob_15s = 1 - pnorm((15 * sack_kg - gain_hat) / se)
+  )
+
+econ_tab3
+```
+
+```{r}
+econ_summary2 <- econ_tab3 %>%
+  transmute(
+    season,
+    net_return_R_ha   = round(Net, 1),
+    prob_net_positive = round(Prob_Pos, 3)*100,
+    prob_5_sacks      = round(Prob_5s, 3)*100,
+    prob_10_sacks     = round(Prob_10s, 3)*100,
+    prob_15_sacks     = round(Prob_15s, 3)*100
+  )
+
+econ_summary2
 ```
 
 ```{r}
@@ -248,6 +352,14 @@ heat_dat <- trial_disease %>%
   mutate(disease = factor(disease, levels = c(diseases, "Total")))
 
 heat_dat
+```
+```{r}
+
+heat_dat %>%
+  filter(!is.nan(severity)) %>% 
+  group_by(disease) %>% 
+  summarise(
+    mean = mean(severity))
 ```
 
 ```{r}
