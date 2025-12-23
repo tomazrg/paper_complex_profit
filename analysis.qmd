@@ -353,6 +353,7 @@ heat_dat <- trial_disease %>%
 
 heat_dat
 ```
+
 ```{r}
 
 heat_dat %>%
