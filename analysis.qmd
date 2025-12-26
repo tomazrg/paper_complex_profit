@@ -498,11 +498,5 @@ p_net
 
 ```
 
-```{r}
-citation("cowplot")
-citation("dplyr")
-citation("ggplot2")
-citation("tidytext")
-citation()
-```
+
 
