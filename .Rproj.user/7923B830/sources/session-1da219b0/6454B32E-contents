@@ -38,6 +38,15 @@ dat <- gsheet2tbl(gs_url) %>%
   )
 
 stopifnot(all(c("check","treated") %in% dat$application))
+
+dat$poli[is.na(dat$poli)] <- 0
+dat$comum[is.na(dat$comum)] <- 0
+dat$branca[is.na(dat$branca)] <- 0
+dat$cercos[is.na(dat$cercos)] <- 0
+dat$turc[is.na(dat$turc)] <- 0
+dat$diplo[is.na(dat$diplo)] <- 0
+dat$antrac[is.na(dat$antrac)] <- 0
+dat$bipol[is.na(dat$bipol)] <- 0
 ```
 
 ```{r}
@@ -50,6 +59,12 @@ hyb_app <- dat %>%
   )
 
 hyb_app
+
+dat %>% 
+  filter(year == 2019)
+
+dat %>% 
+  filter(is.na(yield))
 ```
 
 ```{r}
@@ -81,7 +96,8 @@ es <- hyb_diff %>%
       levels = c("Disease absent (≤2%)", "Disease present (>2%)")
     )
   ) %>%
-  filter(is.finite(vi), vi > 0, m_hybrids >= 2)
+  filter(is.finite(vi), vi > 0, m_hybrids >= 2)# %>% 
+  #filter(!trial == "2019_Pato Branco_first")
 ```
 
 ```{r}
@@ -183,6 +199,7 @@ mP_lnr
 
 ```{r}
 
+# HIGH
 
 s <- summary(mP_lnr)
 
@@ -203,7 +220,7 @@ pct_diff_ub <- (ratio_diff_ub - 1) * 100
 
 # Put into a simple table
 diff_table <- data.frame(
-  comparison = "High vs low",
+  comparison = "Treated vs Non-treated",
   pct_diff  = pct_diff,
   pct_lb    = pct_diff_lb,
   pct_ub    = pct_diff_ub
@@ -212,6 +229,37 @@ diff_table <- data.frame(
 diff_table
 
 
+```
+```{r}
+
+# LOW
+
+s <- summary(mP_lnr)
+
+# Extract the moderator row (difference)
+b1_est <- s$b[1]          # lnRR difference: present - absent
+b1_lb  <- s$ci.lb[1]      # lower CI
+b1_ub  <- s$ci.ub[1]      # upper CI
+
+# Convert lnRR difference to ratio
+ratio_diff    <- exp(b1_est)
+ratio_diff_lb <- exp(b1_lb)
+ratio_diff_ub <- exp(b1_ub)
+
+# Convert ratio to % change
+pct_diff    <- (ratio_diff    - 1) * 100
+pct_diff_lb <- (ratio_diff_lb - 1) * 100
+pct_diff_ub <- (ratio_diff_ub - 1) * 100
+
+# Put into a simple table
+diff_table <- data.frame(
+  comparison = "Treated vs Non-treated",
+  pct_diff  = pct_diff,
+  pct_lb    = pct_diff_lb,
+  pct_ub    = pct_diff_ub
+)
+
+diff_table
 ```
 
 
@@ -417,7 +465,7 @@ heat_dat2 <- heat_dat %>%
   )
 
 p_heat <- ggplot(heat_dat2, aes(x = disease, y = trial_ord, fill = severity, 
-                               label = round(severity,1))) +
+                               label = round(severity,2))) +
   geom_tile(color = "white", linewidth = 0.2) +
   labs(
     x = "Disease (non-treated control)",
@@ -436,6 +484,7 @@ p_heat <- ggplot(heat_dat2, aes(x = disease, y = trial_ord, fill = severity,
 p_heat
 
 ```
+
 
 ```{r}
 ggsave("fig/heat_disease.png", bg = "white", dpi = 600, height = 8, width = 12)

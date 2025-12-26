@@ -1,0 +1,8 @@
+"0","trial_disease <- hyb_app %>%"
+"0","  filter(application == ""check"") %>%"
+"0","  group_by(trial, season) %>%"
+"0","  summarise(across(all_of(diseases), mean, na.rm = TRUE), .groups = ""drop"") %>%"
+"0","  mutate(sev_sum = rowSums(across(all_of(diseases)), na.rm = TRUE)) %>%"
+"0","  arrange(sev_sum)"
+"0",""
+"0","trial_disease"
