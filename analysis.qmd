@@ -84,6 +84,16 @@ es <- hyb_diff %>%
   filter(is.finite(vi), vi > 0, m_hybrids >= 2)
 ```
 
+```{r}
+es %>% 
+  filter(sev_sum > 0.1) %>% 
+  summarise(
+    mean = mean(sev_sum),
+    min = min(sev_sum),
+    max = max(sev_sum),
+    median = median(sev_sum)
+  )
+```
 
 
 ```{r}
