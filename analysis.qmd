@@ -60,11 +60,6 @@ hyb_app <- dat %>%
 
 hyb_app
 
-dat %>% 
-  filter(year == 2019)
-
-dat %>% 
-  filter(is.na(yield))
 ```
 
 ```{r}
@@ -464,17 +459,17 @@ heat_dat2 <- heat_dat %>%
     trial_ord = recode(trial_ord, !!!y_map)
   )
 
-p_heat <- ggplot(heat_dat2, aes(x = disease, y = trial_ord, fill = severity, 
-                               label = round(severity,2))) +
+p_heat <- ggplot(heat_dat2, aes(x = disease, y = trial_ord, fill = severity,
+                                label = round(severity, 2))) +
   geom_tile(color = "white", linewidth = 0.2) +
+  geom_text(size = 5, color = "white") +              # <- set text color here
   labs(
-    x = "Disease (non-treated control)",
+    x = "Disease in the non-treated",
     y = "",
     fill = "Severity (%)"
   ) +
-  geom_text(size = 4)+
-  scale_fill_viridis_c(begin = 0.4, end = 1, na.value = "grey80") +
-    ggthemes::theme_few()+
+  scale_fill_viridis_c(option = "D", begin = 0.3, end = 1, na.value = "grey80") +
+  ggthemes::theme_few() +
   theme(text = element_text(size = 14, face = "bold"),
         axis.title = element_text(size = 16, face = "bold"),
         strip.text = element_text(size = 16, face = "bold"),
@@ -482,6 +477,7 @@ p_heat <- ggplot(heat_dat2, aes(x = disease, y = trial_ord, fill = severity,
         legend.position = "right")
 
 p_heat
+
 
 ```
 
@@ -500,5 +496,13 @@ p_net <- ggplot(econ_tab, aes(x = pressure, y = Net)) +
 
 p_net
 
+```
+
+```{r}
+citation("cowplot")
+citation("dplyr")
+citation("ggplot2")
+citation("tidytext")
+citation()
 ```
 
