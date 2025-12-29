@@ -22,7 +22,7 @@ gs_url <- "https://docs.google.com/spreadsheets/d/1i7f61MP5efJclMLpQWgh9k3iTyX7X
 
 ```{r}
 diseases <- c("poli","comum","branca","cercos","turc","diplo","antrac","bipol")
-thr_present <- 2   
+thr_present <- 1.6  
 
 price <- 200      
 cost  <- 80      
@@ -106,7 +106,6 @@ es %>%
   )
 ```
 
-
 ```{r}
 
 m0 <- rma(yi, vi, data = es, method = "REML")
@@ -122,7 +121,6 @@ mP
 mP2 <- rma(yi, vi, mods = ~ season, data = es, method = "REML")
 mP2
 ```
-
 
 ```{r}
 es$pressure <- factor(es$pressure,
@@ -165,7 +163,6 @@ pred_tab2 <- data.frame(
 
 pred_tab2
 ```
-
 
 ```{r}
 hyb_lnr <- hyb_diff %>%
@@ -225,6 +222,7 @@ diff_table
 
 
 ```
+
 ```{r}
 
 # LOW
@@ -256,7 +254,6 @@ diff_table <- data.frame(
 
 diff_table
 ```
-
 
 ```{r}
 mP_lnr2 <- rma(yi, vi, mods = ~ season, data = es_lnr, method = "REML")
@@ -302,6 +299,7 @@ if (max(pred_tab$gain_hat) < 20) {
 ```
 
 ## Pressure
+
 ```{r}
 Gcrit <- 1000 * cost / price
 
@@ -355,6 +353,7 @@ econ_tab2 <- pred_tab2 %>%
 
 econ_tab2
 ```
+
 ```{r}
 sack_kg <- 60
 econ_tab3 <- econ_tab2 %>%
@@ -481,7 +480,6 @@ p_heat
 
 ```
 
-
 ```{r}
 ggsave("fig/heat_disease.png", bg = "white", dpi = 600, height = 8, width = 12)
 ```
@@ -497,6 +495,3 @@ p_net <- ggplot(econ_tab, aes(x = pressure, y = Net)) +
 p_net
 
 ```
-
-
-
