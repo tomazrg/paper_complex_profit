@@ -14,7 +14,6 @@ library(lme4)
 diego = gsheet2tbl("https://docs.google.com/spreadsheets/d/16KvnWpwhFE8dLDjEjV_MDihw3jXS0Q54/edit?usp=sharing&ouid=100062960437992925872&rtpof=true&sd=true")
 ```
 
-
 ```{r}
 library(emmeans)
 str(diego[, c("TRAT","Ambiente","BLOCO","PROD")])
@@ -40,11 +39,18 @@ diego_gain_pos <- diego_gain %>%
   filter(TRAT != 0)
 
 
-m1 <- lmer(PROD ~ TRAT*Ambiente + (1 |BLOCO), data = diego)
 
+m0 <- lmer(PROD ~ 1 + (1 |BLOCO), data = diego)
+m1 <- lmer(PROD ~ TRAT*Ambiente + (1 |BLOCO), data = diego)
+m2 <- lmer(PROD ~ TRAT + (1 |BLOCO), data = diego)
+m3 <- lmer(PROD ~ Ambiente + (1 |BLOCO), data = diego)
+m4 <- lmer(PROD ~ TRAT + (1 |Ambiente), data = diego)
+
+AIC(m0,m1,m2,m3,m4)
+BIC(m0,m1,m2,m3,m4)
 
 summary(m1)
-
+confint(m1)
 
 emm <- emmeans(m1, ~ TRAT*Ambiente)
 emm
@@ -70,12 +76,16 @@ prob_positive <- function(G_hat, se_G, price, cost){
   Gc <- G_crit(price, cost)
   1 - pnorm((Gc - G_hat) / se_G)
 }
+
+
 ```
 
 ```{r}
 
 price_vec <- c(200,400,600,800,900, 1000)
-cost_vec  <- c(800,900,1000,1100,1200,1300)
+#cost_vec  <- c(800,900,1000,1100,1200,1300)
+
+cost_vec  <- c(500,700,900,1100,1300,1500,1700,1900,2100)
 
 #price_vec = seq(250, 1000,length.out = 400)
 #cost_vec = seq(1000, 1300,length.out = 400)
@@ -94,15 +104,10 @@ A1$season  = "T60 x T240"
 
 A1$Gcrit_hf  <- with(A1, G_crit(price, cost))
 A1$Net_hf    <- with(A1, net_return(2588, price, cost))
-A1$Prob_hf   <- with(A1, prob_positive(2588, 1050,   price, cost))
+A1$Prob_hf   <- with(A1, prob_positive(2588,750.9,price, cost))#2588#1050
 A1$ambiente = "Ambiente 1"
 A1$Prob_hf = A1$Prob_hf*100
 
-#econ_tab <- A1 %>%
-#  mutate(
- #   Net = 167 * price_vec / 1000 - cost_vec,
-  #  Prob_Pos = 1 - pnorm((Gcrit - 167) / 1050)
-  #)
 
 ```
 
@@ -110,14 +115,15 @@ A1$Prob_hf = A1$Prob_hf*100
 library(ggplot2)
 A1 %>% 
   ggplot(aes(as.factor(cost),as.factor(price), fill = Prob_hf))+ 
+  #ggplot(aes(price,cost, fill = Prob_hf))+
   #geom_raster()+
    geom_tile(color = "white", size = 0.5)+
  # scale_fill_distiller(palette = "RdYlGn",breaks = seq(0, 100, by =25),direction = 1)+
-  scale_fill_viridis_b(option = "D")+
+  scale_fill_viridis_b(option = "D", direction = -1)+
   ggthemes::theme_few()+
  # facet_wrap(~season+pressure)+
-  labs(y = "Preco milho (R$/ton)",
-       x = "Custo (R$/ha)",
+  labs(y = "Maize (R$/ton)",
+       x = "Cost (R$/ha)",
        fill ="Pr(G \u2265 C)" )+
   theme(legend.position = "right",
         legend.justification = 0.5,
@@ -126,3 +132,61 @@ A1 %>%
         axis.text.y = element_text(size = 12, face = "bold"))
 ```
 
+```{r}
+
+price_vec <- c(200,300,400,500,600,700,800,900, 1000)
+diff_vec  <- c(500,700,900,1100,1300,1500,1700,1900,2100)
+
+
+#price_vec = seq(250, 1000,length.out = 600)
+#diff_vec = seq(500, 2000,length.out = 600)
+
+
+scenarios <- expand.grid(price = price_vec,
+                         diff_vec  = diff_vec)
+```
+
+```{r}
+scenarios2 = scenarios %>% 
+  dplyr::mutate(
+    minimum  = (diff_vec/price)
+  )
+scenarios2
+```
+
+```{r}
+heat = scenarios2 %>% 
+  ggplot(aes(as.factor(price),as.factor(diff_vec), fill = minimum))+ 
+  #ggplot(aes(price,cost, fill = Prob_hf))+
+  #geom_raster()+
+   geom_tile(color = "white", size = 0.5)+
+ # scale_fill_distiller(palette = "RdYlGn",breaks = seq(0, 100, by =25),direction = 1)+
+  scale_fill_viridis_b(option = "D", direction = 1)+
+  ggthemes::theme_few()+
+ # facet_wrap(~season+pressure)+
+  labs(x = "Price (R$/ton)",
+       y = "Cost (kg/ha)",
+       fill ="t/ha" )+
+  theme(legend.position = "right",
+        legend.justification = 0.5,
+        text = element_text(size = 12, face = "bold"),
+        axis.text.x = element_text(size = 12, face = "bold"),   
+        axis.text.y = element_text(size = 12, face = "bold"))
+```
+
+```{r}
+hist = scenarios2 %>% 
+  ggplot(aes(minimum))+
+  geom_histogram(colour = "white", fill = "steelblue", bins = 15)+
+  theme_bw()+
+  labs(x = "Minimum (t/ha)",
+       y = "Frequency")+
+   theme(text = element_text(size = 12, face = "bold"),
+        axis.text.x = element_text(size = 12, face = "bold"),   
+        axis.text.y = element_text(size = 12, face = "bold"))
+```
+
+```{r}
+library(patchwork)
+hist+heat
+```
