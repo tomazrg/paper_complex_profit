@@ -1,6 +1,7 @@
 ---
-title: "Untitled"
-editor: visual
+title: ""
+message: false
+warning: false
 ---
 
 # Packages
@@ -493,5 +494,296 @@ p_net <- ggplot(econ_tab, aes(x = pressure, y = Net)) +
   theme_half_open()
 
 p_net
+
+```
+
+## Yield
+```{r}
+dados <- gsheet2tbl("https://docs.google.com/spreadsheets/d/1pUGN7bPHtENsO8eb-f8J1q6_pbMqm86bVnaNlgClleo/edit?usp=sharing")
+
+```
+
+```{r}
+
+dados2 <- dados |> 
+  mutate(trial = interaction(year, location, season, hybrid))
+
+dados3 <- dados2 |> 
+  dplyr::group_by(trial, year, location, season, hybrid, technology, application) |>
+  dplyr::summarize(sev = mean(severity),
+            yld = mean(yield2),
+            sd_sev = sd(severity),
+            sd_yld = sd(yield2),
+            n = n()
+            )
+
+dados_meta <- dados3 %>%
+  dplyr::select(trial, year, location, season, hybrid, technology, application, yld, sd_yld, n, sev) %>%
+  pivot_wider(
+    names_from = application,
+    values_from = c(yld, sd_yld,n, sev),
+    names_sep = "_"
+  ) %>%
+    dplyr::mutate(
+    study_id = paste(trial, year, location, season, hybrid, sep = "_"),
+    pressao = ifelse(sev_check > 10, "high", "low"),
+    yi = yld_treated - yld_check,
+    sei = sqrt((sd_yld_treated^2 / n_treated) + (sd_yld_check^2 / n_check))
+  ) %>%
+  drop_na(yi, sei) 
+
+dados_meta
+```
+
+```{r}
+library(ggthemes)
+
+metaa = dados_meta %>% 
+   filter(sev_check >=5) %>% 
+  filter(yld_check <= 12000)
+
+median(metaa$sev_check)
+```
+
+```{r}
+yield_plot = metaa %>% 
+  ggplot(aes(yld_check))+
+  geom_histogram(color = "white",fill = "black", bins = 10)+
+  scale_x_continuous(breaks = c(5000,7500,10000,12500),
+                     limits = c(5000, 12500))+
+  facet_wrap(~season,labeller = as_labeller(c(
+    "first" = "",
+    "second" = " "
+  )))+
+  theme_few()+
+  labs(x = "Yield (kg/ha)",
+       y = "Frequency")+
+  theme(text = element_text(size = 8, face = "bold"),
+        axis.text.x = element_text(size = 8, face = "bold", angle = 45, vjust = 0.5),   
+        axis.text.y = element_text(size = 8, face = "bold"),
+        axis.title = element_text(size = 12, face = "bold"),
+        strip.text = element_text(size = 12))
+yield_plot
+```
+
+## Severity
+
+```{r}
+
+
+sev_plot = metaa %>% 
+  ggplot(aes(sev_check))+
+  geom_histogram(color = "white",fill = "black", bins = 10)+
+  facet_wrap(~season,labeller = as_labeller(c(
+    "first" = "First",
+    "second" = "Second"
+  )))+
+  theme_few()+
+  labs(x = "Severity (%)",
+       y = "Frequency")+
+  theme(text = element_text(size = 8, face = "bold"),
+        axis.text.x = element_text(size = 8, face = "bold", angle = 45, vjust = 0.5),   
+        axis.text.y = element_text(size = 8, face = "bold"),
+        axis.title = element_text(size = 12, face = "bold"),
+        strip.text = element_text(size = 12))
+
+sev_plot
+```
+
+
+## Map
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(ggrepel)
+library(maps)
+
+
+# Número de híbridos por location + coordenadas
+loc_hybrids <- dados %>%
+  group_by(location, season, lat, lon) %>%
+  summarise(n_hybrids = n_distinct(hybrid), .groups = "drop")
+
+loc_hybrids$lat = NULL
+loc_hybrids$lon = NULL
+loc_hybrids$lat = c(-24.09,-24.09,-23.356,-26.1255)
+loc_hybrids$lon = c(-52.356389,-52.356389,-51.158889,-52.65)
+
+library(scales)
+library(ggspatial) 
+library(gsheet)
+library(ggrepel)
+library(cowplot)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(sf)
+library(tidyverse)
+
+#install.packages("devtools") # I guess you also need this
+#devtools::install_github("ropensci/rnaturalearthhires")
+
+BRA = ne_states(
+  country = "Brazil",
+  returnclass = "sf"
+)
+library(geobr)
+municipios <- read_municipality(code_muni = "all", year = 2020)
+municipios = municipios %>% filter(name_state ==  c("Paraná"))
+
+states <- filter(BRA, 
+                 name_pt == "Paraná")
+unique(BRA$name_pt)
+
+states = states %>% 
+  mutate(id = case_when(
+    name_pt == "Paraná" ~ "PR"))
+
+SUL = ne_states(
+  country = c("Argentina", "Uruguay", "Paraguay", "Colombia", "Bolivia"),
+  returnclass = "sf")
+
+br_sf <- ne_states(geounit = "brazil",
+                   returnclass = "sf")
+
+
+library(ggplot2)
+library(cowplot)  
+
+library(ggplot2)
+library(ggrepel)
+library(dplyr)
+library(ggthemes)
+library(ggspatial)
+loc_hybrids <- loc_hybrids[-1, ]
+map3 <- loc_hybrids |>
+  ggplot() +
+  
+  # Mapa base do Brasil
+  geom_sf(data = BRA, fill = "white", color = "gray60", size = 0.4) +
+  
+  # Destacar o Paraná
+  geom_sf(data = subset(BRA, postal %in% c("PR")), 
+          fill = NA, color = "black", size = 1) +
+  
+  # Siglas dos estados
+  geom_text(data = states, aes(x = longitude, y = latitude, label = id), 
+            size = 5, hjust = 0.8, color = "black", fontface = "bold") +
+  
+  # Pontos das localidades
+  geom_point(data = loc_hybrids, aes(x = lon, y = lat), 
+             alpha = 0.8) +
+  
+  # Nomes das cidades com linhas
+  geom_text_repel(
+    data = loc_hybrids,
+    aes(x = lon, y = lat, label = location),
+    size = 4,
+    fontface = "bold",
+    color = "black",
+    min.segment.length = 0,
+    box.padding = 0.3,
+    segment.color = "gray30",
+    segment.size = 0.4
+  ) +
+  
+  # Tema e ajustes de mapa
+  theme_minimal_grid() +
+  coord_sf(xlim = c(-58, -45), ylim = c(-27, -22), expand = FALSE) +
+  
+  # Legenda personalizada
+  guides(size = FALSE,  
+         color = guide_colorbar(title = "Severity (%)", 
+                                direction = "horizontal",
+                                title.position = "top")) +
+  
+  # Estilo da legenda e borda do painel
+  theme(
+    legend.position = c(0.9, 0.01),  
+    legend.justification = c(1, 0),
+    legend.direction = "horizontal",
+    legend.title.align = 0.5,
+    panel.border = element_rect(color = "black", fill = NA, size = 1),
+    axis.title = element_text(face = "bold")
+  ) +
+  
+  # Adiciona seta de norte
+  annotation_north_arrow(location = "br", which_north = "true", 
+                         pad_x = unit(5.86, "in"), pad_y = unit(0.3, "in"), 
+                         style = north_arrow_fancy_orienteering, 
+                         height = unit(1.2, "cm"), width = unit(1.1, "cm")) +
+  
+  # Barra de escala
+  annotation_scale(location = "br", 
+                   width_hint = 0.1, 
+                   height = unit(0.2, "cm"), 
+                   text_cex = 0.6, 
+                   pad_x = unit(5.8, "in"), 
+                   pad_y = unit(0.2, "in")) +
+  
+  # Eixos
+  labs(x = "Longitude", y = "Latitude")
+
+map3
+
+```
+
+```{r}
+pr_municipios <- read_municipality(code_muni = "all", year = 2020) %>%
+  filter(name_state == "Paraná")
+
+BRA <- ne_states(country = "Brazil", returnclass = "sf")
+pr_estado <- BRA %>% filter(name_pt == "Paraná")
+map2 = loc_hybrids #|> filter(estado == "PR")
+
+mapa_brasil <- ggplot() +
+  geom_sf(data = BRA, fill = "white", color = "black", size = 0.2) +  
+  geom_sf(data = subset(BRA, postal %in% c("PR")), 
+          fill = "gray40", color = "black", size = 0.6) +  
+  theme_map() +
+    theme(
+    panel.background = element_rect(fill = "white", color = NA),  
+    plot.background = element_rect(fill = "white", color = NA),   
+    panel.border = element_rect(color = "black", fill = NA, size = 1)) 
+```
+
+```{r}
+library(patchwork)
+mapp = map3 + 
+  inset_element(mapa_brasil, 
+                left = 0.8, bottom = 0.5,  
+                right = 0.99, top = 0.95) 
+
+```
+
+```{r}
+library(cowplot)
+
+
+right_panel <- plot_grid(
+  sev_plot, yield_plot,
+  ncol = 1,
+  labels = c("(b)", "(c)"),
+  label_size = 14,
+  label_fontface = "bold",
+  align = "v"
+)
+
+
+final_plot <- plot_grid(
+  mapp, right_panel,
+  ncol = 2,
+  rel_widths = c(2, 1),     
+  labels = c("(a)",""),
+  label_size = 14,
+  label_fontface = "bold",
+  label_x = 0.02,
+  label_y = 0.98,
+  align = "h"
+)
+
+final_plot
+
+ggsave("fig/map.png", height=4, width=10, dpi = 600, bg = "white")
 
 ```

@@ -8,12 +8,8 @@ website:
     left:
       - href: index.qmd
         text: "<i class='bi bi-book-half'></i> About"
-      - href: about.qmd
-        text: "<i class='bi bi-bar-chart-fill'></i> Linear modeling"
-      - href: blup.qmd
-        text: "<i class='bi bi-diagram-3'></i> BLUP"
-      - href: profit.qmd
-        text: "<i class='bi bi-cash-coin'></i> Profitability"
+      - href: analysis.qmd
+        text: "<i class='bi bi-bar-chart-fill'></i> Analysis"
     right:
       - href: https://github.com/tomazrg/paper_complex_profit
         text: "<i class='bi bi-github'></i> GitHub"
