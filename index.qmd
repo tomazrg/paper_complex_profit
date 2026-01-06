@@ -1,5 +1,5 @@
 ---
-title: "Is chemical control of foliar fungal diseases profitable in both the first and the second maize season in Brazil?"
+title: "When does fungicide use pay off in maize? Evidence from low foliar disease pressure environments in Southern Brazil"
 format:
   html:
     toc: true

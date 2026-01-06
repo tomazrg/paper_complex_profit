@@ -1,0 +1,6 @@
+"0",""
+"0","heat_dat %>%"
+"0","  filter(!is.nan(severity)) %>% "
+"0","  group_by(disease) %>% "
+"0","  summarise("
+"0","    mean = mean(severity))"

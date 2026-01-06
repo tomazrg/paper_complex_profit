@@ -1,0 +1,5 @@
+"0","if (max(pred_tab$gain_hat) < 20) {"
+"0","  pred_tab <- pred_tab %>%"
+"0","    mutate(across(c(gain_hat, ci_lb, ci_ub, se), ~ .x * 1000))"
+"0","}"
+"0",""

@@ -1,0 +1,8 @@
+"0","es %>% "
+"0","  filter(sev_sum > 0.1) %>% "
+"0","  summarise("
+"0","    mean = mean(sev_sum),"
+"0","    min = min(sev_sum),"
+"0","    max = max(sev_sum),"
+"0","    median = median(sev_sum)"
+"0","  )"
