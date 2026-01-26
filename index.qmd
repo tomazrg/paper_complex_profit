@@ -9,7 +9,7 @@ format:
 
 Our study aimed to assess the maize response, in terms of productivity and economic profitability, based on management program with foliar fungicide in the first and second seasons.
 
-A preprint version of this work has been avaiable at [here](https://www.cabidigitallibrary.org/doi/10.31220/agriRxiv.2026.00391).
+A preprint version of this work has been available at [here](https://www.cabidigitallibrary.org/doi/10.31220/agriRxiv.2026.00391).
 
 ------------------------------------------------------------------------
 
@@ -47,7 +47,7 @@ Due to the significant yield reductions observed in maize production, fungicide 
 
 <p style="max-width:600px;">
 
-I'm Ricardo G. Tomaz, a Brazilian PhD Student in Plant Pathology (UFV) and I am doing my PhD Sandwich Program at LSU (EUA). I have strong expertise in crop disease epidemiology, predictive modelling, and yield-loss simulation in crops such as soybean, wheat, and maize. In addition, I have worked with remote sensing to identify and quantify important disease in rice.
+I'm Ricardo G. Tomaz, a Brazilian PhD Student in Plant Pathology (UFV) and I am doing my PhD Sandwich Program at LSU (EUA). I have strong expertise in crop disease epidemiology, predictive modeling, and yield-loss simulation in crops such as soybean, wheat, and maize. In addition, I have worked with remote sensing to identify and quantify important disease in rice.
 
 </p>
 :::
